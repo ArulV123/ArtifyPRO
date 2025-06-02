@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0" />
+  <title>Artify PRO</title>
+  <!-- Google Fonts & Material Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+  <style>
+    :root {
+      /* heights */
+      --header-top-height:    64px;
+      --header-bottom-height: 80px;
+      --header-total-height:  calc(var(--header-top-height) + var(--header-bottom-height));
+      --artist-bar-height:    48px;
+      --touch-size:           44px;
+
+      /* colors & misc */
+      --bg-main:    linear-gradient(135deg,#f6d365,#fda085);
+      --card-bg:    #fff;
+      --accent:     #ff7e6b;
+      --text:       #333;
+      --shadow:     0 4px 12px rgba(0,0,0,0.05);
+      --transition: .3s ease;
+    }
+
+    *, *::before, *::after {
+      box-sizing:border-box;
+      margin:0;
+      padding:0;
+      font-family:'Poppins',sans-serif;
+    }
+    html, body { width:100%; height:100%; overflow-x:hidden; }
+    body {
+      background:var(--bg-main);
+      color:var(--text);
+      padding-top: var(--header-total-height);
+      transition: padding-top var(--transition);
+    }
+    body.artist-mode {
+      padding-top: calc(var(--header-total-height) + var(--artist-bar-height));
+    }
+
+    /* LOADING OVERLAY */
+    #loadingOverlay {
+      position:fixed; inset:0;
+      background:rgba(255,255,255,0.8);
+      display:flex; align-items:center; justify-content:center;
+      z-index:2000; transition:opacity .5s;
+    }
+    #loadingOverlay.fade-out { opacity:0; pointer-events:none; }
+    .spinner {
+      width:48px; height:48px;
+      border:4px solid #ddd;
+      border-top:4px solid var(--accent);
+      border-radius:50%;
+      animation:spin 1s linear infinite;
+    }
+    @keyframes spin { to{transform:rotate(360deg);} }
+
+    /* HEADER */
+    header {
+      position:fixed; top:0; left:0; right:0;
+      background:#fff;
+      box-shadow:var(--shadow);
+      z-index:1000;
+      overflow:hidden;
+    }
+    .header-inner { max-width:1200px; margin:0 auto; }
+
+    .header-row {
+      display:flex; align-items:center; padding:0 16px;
+    }
+    .header-row.top {
+      height: var(--header-top-height);
+      justify-content:space-between;
+    }
+    .header-row.bottom {
+      height: var(--header-bottom-height);
+      gap:8px; justify-content:space-between;
+    }
+
+    #backBtn, #favoritesBtn {
+      width:var(--touch-size);
+      height:var(--touch-size);
+      border:none; background:var(--card-bg);
+      border-radius:50%;
+      box-shadow:var(--shadow);
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; flex-shrink:0;
+    }
+    #backBtn { display:none; }
+    #backBtn.visible { display:flex; }
+    #favoritesBtn { position:relative; }
+    #favoritesBtn .material-icons { font-size:24px; }
+    #badge {
+      position:absolute; top:-4px; right:-4px;
+      background:var(--accent); color:#fff;
+      font-size:.7rem; padding:2px 6px; border-radius:12px;
+    }
+
+    #mainTitle {
+      flex:1;
+      text-align:center;
+      font-size:1.5rem;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      padding:0 8px;
+    }
+
+    .header-row.bottom input,
+    .header-row.bottom select {
+      flex:1 1 auto; min-width:0;
+      height:100%; padding:0 12px;
+      border:2px solid #ddd;
+      border-radius:20px;
+      transition:border-color var(--transition);
+    }
+    .header-row.bottom input:focus,
+    .header-row.bottom select:focus {
+      outline:none;
+      border-color:var(--accent);
+    }
+
+    /* ARTIST INFO BAR */
+    #artistInfo {
+      position:fixed; top: var(--header-total-height); left:0; right:0;
+      height: var(--artist-bar-height);
+      background:var(--card-bg);
+      display:flex; align-items:center; justify-content:center;
+      gap:16px; padding:0 16px;
+      box-shadow:var(--shadow);
+      opacity:0; transform:translateY(-10px);
+      transition:opacity var(--transition), transform var(--transition);
+      z-index:900;
+    }
+    #artistInfo.visible {
+      opacity:1; transform:translateY(0);
+    }
+    #artistInfo span { display:flex; align-items:center; gap:4px; font-size:.9rem; }
+
+    /* SECTIONS */
+    section {
+      max-width:1200px; margin:0 auto; padding:16px;
+      transition:opacity var(--transition), transform var(--transition);
+    }
+    .hidden { display:none; opacity:0; transform:translateY(20px); }
+    .visible { display:block; opacity:1; transform:translateY(0); }
+
+    /* GALLERY CARDS */
+    #gallery {
+      display:grid; gap:12px;
+      grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+    }
+    .card {
+      background:var(--card-bg);
+      border-radius:8px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      display:flex; flex-direction:column;
+      position:relative;
+      cursor:pointer;
+      transition:transform var(--transition);
+    }
+    .card:hover { transform:translateY(-4px); }
+    .card img {
+      width:100%; aspect-ratio:1/1; object-fit:cover;
+    }
+    .info { padding:8px; }
+    .info h2 { font-size:1rem; margin-bottom:4px; }
+    .info .artist { font-size:.85rem; color:#666; }
+    .info .tag { font-size:.75rem; color:var(--accent); margin-top:4px; }
+    .new-badge {
+      position:absolute; top:8px; left:8px;
+      background:var(--accent); color:#fff;
+      padding:2px 6px; font-size:.75rem;
+      border-radius:4px; font-weight:bold;
+    }
+    .matched-tag {
+      margin:0 8px 8px;
+      padding:2px 6px;
+      display:inline-block;
+      font-size:.75rem;
+      background:rgba(255,126,107,0.1);
+      color:var(--accent);
+      border-radius:4px;
+    }
+    .controls-row {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:8px; border-top:1px solid #f0f0f0;
+    }
+    .controls-row .group {
+      display:flex; align-items:center;
+      /* gap reduced from 4px ? 2px */
+      gap:2px;
+    }
+    .material-icons.icon {
+      font-size:20px; cursor:pointer; opacity:.8;
+      transition:opacity var(--transition);
+      width:var(--touch-size); height:var(--touch-size);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .material-icons.icon:hover { opacity:1; }
+    .count {
+      font-size:.85rem; color:#555;
+      /* If you want slightly less horizontal margin, you can also add: */
+      /* margin-left: 2px; */
+    }
+    .like-btn.liked { color:var(--accent); }
+    .follow-btn.following { color:var(--accent); }
+
+    /* FAVORITES LIST */
+    #favoritesList {
+      list-style:none; padding:0; margin:0 auto; max-width:400px;
+    }
+    .favorite-item {
+      background:var(--card-bg);
+      padding:12px; margin-bottom:8px;
+      border-radius:6px; box-shadow:var(--shadow);
+      display:flex; justify-content:space-between;
+      align-items:center; cursor:pointer;
+      transition:background var(--transition);
+      font-size:1rem;
+    }
+    .favorite-item:hover { background:#f9f9f9; }
+    .fav-unfollow { font-size:24px; }
+
+    /* MODAL */
+    #modal {
+      position:fixed; inset:0;
+      background:rgba(0,0,0,0.7);
+      display:none; align-items:center; justify-content:center;
+      padding:16px; z-index:1100;
+    }
+    #modal.active { display:flex; }
+    .modal-content {
+      background:var(--card-bg);
+      border-radius:12px;
+      width:100%; max-width:600px; max-height:90vh;
+      overflow:auto; position:relative;
+      animation:fadeIn .4s ease-out;
+    }
+    @keyframes fadeIn { from{opacity:0;transform:scale(.9);} to{opacity:1;transform:scale(1);} }
+    .modal-content .close {
+      position:absolute; top:12px; right:12px;
+      background:var(--accent); color:#fff;
+      border:none; width:32px; height:32px;
+      border-radius:50%; cursor:pointer;
+      font-size:1.5rem; display:flex;
+      align-items:center; justify-content:center;
+      box-shadow:var(--shadow);
+      transition:background var(--transition);
+    }
+    .modal-content .close:hover { background:#ff4e3b; }
+    .modal-content img {
+      width:100%; height:auto; border-radius:8px; margin-top:40px;
+    }
+    .details { padding:12px; }
+    .details h2 { font-size:1.5rem; margin-bottom:8px; color:#444; }
+    .details p { margin-top:4px; }
+    .details a, .details button {
+      display:inline-block; margin:8px 8px 0 0;
+      padding:8px 12px; background:var(--accent);
+      color:#fff; border:none; border-radius:6px;
+      cursor:pointer; font-size:.9rem; text-decoration:none;
+      min-height:var(--touch-size);
+    }
+    .details a:hover, .details button:hover { background:#ff4e3b; }
+    .details ul { margin-top:8px; color:#555; }
+
+    /* TOAST */
+    #toast {
+      position:fixed; bottom:24px; left:50%;
+      transform:translateX(-50%);
+      background:rgba(0,0,0,0.8); color:#fff;
+      padding:12px 20px; border-radius:24px;
+      opacity:0; transition:opacity .3s, transform .3s;
+      z-index:1500; pointer-events:none;
+      max-width:90%; text-align:center;
+    }
+    #toast.show {
+      opacity:1; transform:translateX(-50%) translateY(-10px);
+    }
+
+    /* RESPONSIVE */
+    @media (max-width:768px) {
+      .header-row.bottom input,
+      .header-row.bottom select {
+        flex:1 1 45%;
+      }
+      #gallery {
+        grid-template-columns:1fr !important;
+      }
+    }
+    @media (max-width:480px) {
+      .header-row.bottom {
+        flex-direction:column; gap:4px;
+      }
+      /* ——— CHANGED: larger touch targets on mobile ——— */
+      .header-row.bottom input,
+      .header-row.bottom select {
+        width:100%;
+        height:56px;          /* increased from 48px */
+        font-size:1rem;       /* larger text */
+        padding:0 16px;       /* a bit more horizontal padding */
+        border-radius:28px;   /* slightly rounder */
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingOverlay"><div class="spinner"></div></div>
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-inner">
+      <div class="header-row top">
+        <button id="backBtn">
+          <span class="material-icons">arrow_back</span>
+        </button>
+        <h1 id="mainTitle">Artify PRO</h1>
+        <button id="favoritesBtn">
+          <span class="material-icons">notifications</span>
+          <span id="badge">0</span>
+        </button>
+      </div>
+      <div class="header-row bottom">
+        <input id="searchBox" placeholder="Search drawings" />
+        <select id="tutorialFilter">
+          <option value="all">All</option>
+          <option value="with">With Tutorial</option>
+          <option value="without">Without Tutorial</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <!-- ARTIST INFO BAR -->
+  <div id="artistInfo">
+    <span id="artistNameInfo"></span>
+    <span>
+      <span class="material-icons">visibility</span>
+      <span id="artistTotalViews">0</span>
+    </span>
+    <span>
+      <span class="material-icons">notifications</span>
+      <span id="artistFollowerCount">0</span>
+    </span>
+  </div>
+
+  <!-- GALLERY -->
+  <section id="gallerySection" class="visible">
+    <div id="gallery"></div>
+  </section>
+
+  <!-- FAVORITES -->
+  <section id="favoritesSection" class="hidden">
+    <h2 style="text-align:center; margin-bottom:16px;">
+      Your Favorite Artists
+    </h2>
+    <ul id="favoritesList"></ul>
+  </section>
+
+  <!-- MODAL -->
+  <div id="modal">
+    <div class="modal-content">
+      <button class="close">&times;</button>
+      <img id="modalImage" src="" alt="Drawing"/>
+      <div class="details">
+        <h2 id="modalName"></h2>
+        <p>Views: <span id="modalViewCount">0</span></p>
+        <a id="modalTutorial" href="#" target="_blank" style="display:none;">
+          Watch Tutorial
+        </a>
+        <button id="printBtn">Print</button>
+        <button id="downloadBtn">Download</button>
+        <h3>Materials Required:</h3>
+        <ul id="modalMaterials"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import {
+      getFirestore, collection, doc, getDoc,
+      setDoc, updateDoc, increment,
+      onSnapshot, getDocs, query, where
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+    import Fuse from "https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.esm.js";
+
+    // --- FIREBASE CONFIG & INIT ---
+    initializeApp({
+      apiKey:    "AIzaSyCVYKqfuMcOae4NmpsYwFHQpaPLHLCzZqE",
+      authDomain:"postitapp-9f5e1.firebaseapp.com",
+      projectId: "postitapp-9f5e1"
+    });
+    const db = getFirestore();
+
+    // --- DOM REFS ---
+    const loadingOverlay   = document.getElementById("loadingOverlay");
+    const gallerySection   = document.getElementById("gallerySection");
+    const favoritesSection = document.getElementById("favoritesSection");
+    const galleryEl        = document.getElementById("gallery");
+    const favListEl        = document.getElementById("favoritesList");
+    const searchBox        = document.getElementById("searchBox");
+    const tutorialFilter   = document.getElementById("tutorialFilter");
+    const favoritesBtn     = document.getElementById("favoritesBtn");
+    const badge            = document.getElementById("badge");
+    const backBtn          = document.getElementById("backBtn");
+    const artistInfoBar    = document.getElementById("artistInfo");
+    const artistNameInfo   = document.getElementById("artistNameInfo");
+    const artistTotalViews = document.getElementById("artistTotalViews");
+    const artistFollowerCt = document.getElementById("artistFollowerCount");
+    const modal            = document.getElementById("modal");
+    const modalImg         = document.getElementById("modalImage");
+    const modalName        = document.getElementById("modalName");
+    const modalTutorial    = document.getElementById("modalTutorial");
+    const modalMaterials   = document.getElementById("modalMaterials");
+    const modalViewCount   = document.getElementById("modalViewCount");
+    const modalCloseBtn    = modal.querySelector(".close");
+    const printBtn         = document.getElementById("printBtn");
+    const downloadBtn      = document.getElementById("downloadBtn");
+    const toast            = document.getElementById("toast");
+
+    // --- STATE ---
+    let allDrawings     = [];
+    let fuse;  
+    let viewedDrawings  = JSON.parse(localStorage.getItem("viewedDrawings")   || "[]");
+    let followedArtists = JSON.parse(localStorage.getItem("followedArtists") || "[]");
+    let seenFeatured    = JSON.parse(localStorage.getItem("seenFeatured")    || "[]");
+    const lastVisit     = +localStorage.getItem("lastVisit")               || 0;
+    let currentArtist   = null;
+
+    // --- UTILITIES ---
+    // Format any number: <1000 ? raw; =1000 ? 1k, 1.2k, 2.3M, etc.
+    const fmt = n => {
+      if (n < 1000) return n;
+      const units = ["k","M","B"];
+      const i = Math.floor(Math.log10(n)/3) - 1;
+      const v = n / Math.pow(1000, i + 1);
+      return v.toFixed(v < 10 ? 1 : 0) + units[Math.max(0, Math.min(i, units.length-1))];
+    };
+
+    let toastTimer;
+    function showToast(msg) {
+      clearTimeout(toastTimer);
+      toast.textContent = msg;
+      toast.classList.add("show");
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 3000);
+    }
+
+    // YouTube-style header hide/show on scroll
+    (() => {
+      let lastY = window.pageYOffset,
+          hdr = document.querySelector("header");
+      const hideAmt = getComputedStyle(document.documentElement)
+                        .getPropertyValue('--header-total-height');
+      window.addEventListener("scroll", () => {
+        const y = window.pageYOffset;
+        if (y > lastY + 10) hdr.style.top = `-${hideAmt}`;
+        else if (y < lastY - 10) hdr.style.top = "0";
+        lastY = y;
+      });
+    })();
+
+    // -----------------------------------
+    // SECTION TOGGLES: Gallery / Favorites / Artist
+    // -----------------------------------
+    function showSection(sec) {
+      const isArtist = (sec === "artist");
+      document.body.classList.toggle("artist-mode", isArtist);
+      gallerySection.classList.toggle("visible", sec !== "favorites");
+      gallerySection.classList.toggle("hidden", sec === "favorites");
+      favoritesSection.classList.toggle("visible", sec === "favorites");
+      favoritesSection.classList.toggle("hidden", sec !== "favorites");
+      backBtn.classList.toggle("visible", sec !== "gallery");
+      artistInfoBar.classList.toggle("visible", isArtist);
+      document.getElementById("mainTitle").textContent = {
+        gallery: "Artify PRO",
+        favorites: "Your Favorite Artists",
+        artist: artistNameInfo.textContent
+      }[sec];
+      if (sec !== "artist") {
+        currentArtist = null;
+        searchBox.placeholder = "Search drawings";
+        searchBox.value = "";
+      }
+    }
+
+    function updateBadge() {
+      badge.textContent = followedArtists.length;
+    }
+
+    // -----------------------------------
+    // REAL-TIME LISTENERS (onSnapshot)
+    // -----------------------------------
+    function setupRealtimeListeners() {
+      // 1) Listen to any changes in images collection ? update view & like counts
+      onSnapshot(collection(db, "images"), snapshot => {
+        snapshot.docChanges().forEach(change => {
+          const data = change.doc.data();
+          const id = change.doc.id;
+          // Update VIEW span (if exists)
+          const viewSpan = document.querySelector(`[data-view-id="${id}"]`);
+          if (viewSpan) viewSpan.textContent = fmt(data.views || 0);
+
+          // Update LIKE count span (if exists)
+          const likeBtn = document.querySelector(`.like-btn[data-id="${id}"]`);
+          if (likeBtn) {
+            const likeCountSpan = likeBtn.nextElementSibling;
+            if (likeCountSpan) likeCountSpan.textContent = fmt(data.likes || 0);
+          }
+
+          // If that image is currently open in modal, update modalViewCount
+          if (modal.classList.contains("active")) {
+            // If modalImage.src ends with this id (assuming the URL contains the document ID),
+            // then update the modal's count.
+            // (You may need to adjust this check if your image URLs don't include the ID)
+            if (modalImg.src.includes(id)) {
+              modalViewCount.textContent = fmt(data.views || 0);
+            }
+          }
+        });
+      });
+
+      // 2) Listen to any changes in artists collection ? update follower counts
+      onSnapshot(collection(db, "artists"), snapshot => {
+        snapshot.docChanges().forEach(change => {
+          const art = change.doc.id;
+          const cnt = change.doc.data().followers || 0;
+          // Update ALL follower spans for this artist
+          document.querySelectorAll(`[data-follower-artist="${art}"]`).forEach(el => {
+            el.textContent = fmt(cnt);
+          });
+          // If currently viewing that artist's page, update the top-bar count too
+          if (currentArtist === art) {
+            artistFollowerCt.textContent = fmt(cnt);
+          }
+        });
+      });
+    }
+
+    // -----------------------------------
+    // INITIALIZATION
+    // -----------------------------------
+    async function init() {
+      // 1) Fetch all drawings once
+      const snap = await getDocs(collection(db, "images"));
+      allDrawings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Mark “new” flags based on lastVisit timestamp
+      allDrawings.forEach(x => x._isNew = (x.uploadedAt || 0) > lastVisit);
+
+      // 2) Build Fuse index for search
+      fuse = new Fuse(allDrawings, {
+        keys: ["name", "searchTags"],
+        threshold: 0.4,
+        includeMatches: true
+      });
+
+      // 3) Set badge and watch for newly uploaded images (only by followed artists)
+      updateBadge();
+      watchNewUploads();
+
+      // 4) Render featured & gallery initially
+      renderFeaturedAndGallery();
+
+      // 5) Fade out loading overlay
+      loadingOverlay.classList.add("fade-out");
+      setTimeout(() => loadingOverlay.remove(), 500);
+
+      // 6) Set up Firestore real-time listeners
+      setupRealtimeListeners();
+    }
+
+    // Watch for any new uploads by the artists the user follows (since lastVisit)
+    function watchNewUploads() {
+      if (!followedArtists.length) return;
+      const q = query(
+        collection(db, "images"),
+        where("uploadedAt", ">", lastVisit),
+        where("artist", "in", followedArtists)
+      );
+      onSnapshot(q, snap => {
+        snap.docChanges().forEach(ch => {
+          if (ch.type === "added") {
+            showToast(`New upload by ${ch.doc.data().artist}!`);
+            badge.textContent = (+badge.textContent || 0) + 1;
+          }
+        });
+      });
+    }
+
+    // -----------------------------------
+    // SHUFFLE HELPER
+    // -----------------------------------
+    function shuffle(a) {
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    // -----------------------------------
+    // FEATURED + GALLERY RENDERING
+    // -----------------------------------
+    function renderFeaturedAndGallery() {
+      let featured = [];
+      followedArtists.forEach(art => {
+        const pics = allDrawings.filter(d => d.artist === art && d._isNew);
+        if (pics.length) {
+          pics.sort((a, b) => b.likes - a.likes);
+          featured.push(pics[0]);
+          if (pics.length > 1) featured.push(pics[pics.length - 1]);
+        }
+      });
+      featured = featured.filter((d, i, arr) => arr.findIndex(x => x.id === d.id) === i);
+
+      let onDeck = featured.filter(f => !seenFeatured.includes(f.id));
+      if (!onDeck.length) {
+        seenFeatured = [];
+        onDeck = shuffle(featured);
+      }
+      onDeck.forEach(f => {
+        if (!seenFeatured.includes(f.id)) seenFeatured.push(f.id);
+      });
+      localStorage.setItem("seenFeatured", JSON.stringify(seenFeatured));
+
+      const rest = shuffle(
+        allDrawings
+          .filter(d => !onDeck.some(x => x.id === d.id))
+          .sort((a, b) => (b._isNew - a._isNew) || (b.views - a.views))
+      );
+
+      renderGallery(
+        onDeck.map(i => ({ item: i, matches: [] }))
+          .concat(rest.map(i => ({ item: i, matches: [] })))
+      );
+    }
+
+    // -----------------------------------
+    // RENDER GALLERY CARDS
+    // -----------------------------------
+    function renderGallery(results) {
+      galleryEl.innerHTML = "";
+      const liked = JSON.parse(localStorage.getItem("likedDrawings") || "[]");
+
+      results.forEach(r => {
+        const item = r.item, m = r.matches || [];
+        const tagMatch = m.find(x => x.key === "searchTags");
+        const matchedTag = tagMatch ? tagMatch.value : null;
+
+        // Create card container
+        const c = document.createElement("div");
+        c.className = "card";
+        // Build innerHTML, adding “Followers” next to the follow icon
+        c.innerHTML = `
+          ${item._isNew ? '<div class="new-badge">NEW</div>' : ''}
+          <img src="${item.image}">
+          <div class="info">
+            <h2>${item.name}</h2>
+            <div class="artist">${item.artist}</div>
+            <div class="tag">${(item.searchTags || [])[0] || ""}</div>
+          </div>
+          ${matchedTag ? `<div class="matched-tag">${matchedTag}</div>` : ""}
+          <div class="controls-row">
+            <div class="group">
+              <span class="material-icons icon">visibility</span>
+              <span class="count" data-view-id="${item.id}">${fmt(item.views || 0)}</span>
+            </div>
+            <div class="group">
+              <span class="material-icons icon like-btn ${liked.includes(item.id) ? "liked" : ""}" data-id="${item.id}">thumb_up</span>
+              <span class="count">${fmt(item.likes || 0)}</span>
+            </div>
+            <div class="group">
+              <span class="material-icons icon follow-btn ${followedArtists.includes(item.artist) ? "following" : ""}" data-artist="${item.artist}">
+                ${followedArtists.includes(item.artist) ? "notifications" : "person_add"}
+              </span>
+              <span class="count" data-follower-artist="${item.artist}">0</span>
+            </div>
+          </div>
+        `;
+        galleryEl.appendChild(c);
+
+        // Attach click handlers
+        c.addEventListener("click", () => openModal(item));
+        c.querySelector(".like-btn").addEventListener("click", e => {
+          e.stopPropagation();
+          toggleLike(e.target);
+        });
+        c.querySelector(".follow-btn").addEventListener("click", e => {
+          e.stopPropagation();
+          toggleFollow(e.target);
+        });
+
+        // After appending, fetch and display the current follower count for this artist
+        const artistSpan = c.querySelector(`[data-follower-artist="${item.artist}"]`);
+        getDoc(doc(db, "artists", item.artist)).then(snap => {
+          const cnt = snap.exists() ? (snap.data().followers || 0) : 0;
+          artistSpan.textContent = fmt(cnt);
+        });
+      });
+    }
+
+    // -----------------------------------
+    // UPDATE ALL VISIBLE FOLLOWER SPANS
+    // -----------------------------------
+    function updateFollowerDisplay(artist) {
+      getDoc(doc(db, "artists", artist)).then(snap => {
+        const cnt = snap.exists() ? (snap.data().followers || 0) : 0;
+        document.querySelectorAll(`[data-follower-artist="${artist}"]`).forEach(el => {
+          el.textContent = fmt(cnt);
+        });
+        if (currentArtist === artist) {
+          artistFollowerCt.textContent = fmt(cnt);
+        }
+      });
+    }
+
+    // -----------------------------------
+    // TOGGLE “LIKE” ON A DRAWING
+    // -----------------------------------
+    async function toggleLike(btn) {
+      const id = btn.dataset.id;
+      let likesArr = JSON.parse(localStorage.getItem("likedDrawings") || "[]");
+      const had = likesArr.includes(id);
+      likesArr = had ? likesArr.filter(x => x !== id) : [...likesArr, id];
+      localStorage.setItem("likedDrawings", JSON.stringify(likesArr));
+      btn.classList.toggle("liked");
+      await updateDoc(doc(db, "images", id), { likes: increment(had ? -1 : 1) });
+      // We rely on the real-time listener to update the visible count across all clients.
+    }
+
+    // -----------------------------------
+    // TOGGLE “FOLLOW” FOR AN ARTIST
+    // -----------------------------------
+    async function toggleFollow(ic) {
+      const art = ic.dataset.artist;
+      const had = followedArtists.includes(art);
+      followedArtists = had ? followedArtists.filter(x => x !== art) : [...followedArtists, art];
+      localStorage.setItem("followedArtists", JSON.stringify(followedArtists));
+      updateBadge();
+      ic.textContent = had ? "person_add" : "notifications";
+      ic.classList.toggle("following", !had);
+
+      const ref = doc(db, "artists", art);
+      if (had) {
+        // Unfollow: decrement
+        await updateDoc(ref, { followers: increment(-1) });
+      } else {
+        // Follow: increment or create if not exists
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          await updateDoc(ref, { followers: increment(1) });
+        } else {
+          await setDoc(ref, { followers: 1 });
+        }
+      }
+      // The real-time listener will auto-update all on-screen follower counts.
+      renderFeaturedAndGallery(); 
+    }
+
+    // -----------------------------------
+    // RENDER “FAVORITES” (FOLLOWED) LIST
+    // -----------------------------------
+    function renderFavorites() {
+      favListEl.innerHTML = "";
+      if (!followedArtists.length) {
+        favListEl.innerHTML = '<li style="text-align:center;color:#666;">No favorites yet.</li>';
+        return;
+      }
+      followedArtists.forEach(art => {
+        const li = document.createElement("li");
+        li.className = "favorite-item";
+        li.innerHTML = `<span>${art}</span>
+          <span class="material-icons fav-unfollow" data-artist="${art}">notifications</span>`;
+        li.addEventListener("click", () => showArtist(art));
+        li.querySelector(".fav-unfollow").addEventListener("click", e => {
+          e.stopPropagation();
+          toggleFollow(e.target);
+        });
+        favListEl.appendChild(li);
+      });
+    }
+
+    // -----------------------------------
+    // SHOW A SINGLE ARTIST’S PAGE
+    // -----------------------------------
+    async function showArtist(artist) {
+      currentArtist = artist;
+      artistNameInfo.textContent = artist;
+      const mine = allDrawings.filter(d => d.artist === artist);
+      artistTotalViews.textContent = fmt(mine.reduce((s, d) => s + (d.views || 0), 0));
+
+      // Fetch and display this artist’s follower count
+      const snap = await getDoc(doc(db, "artists", artist));
+      artistFollowerCt.textContent = snap.exists() ? fmt(snap.data().followers || 0) : 0;
+
+      showSection("artist");
+      searchBox.value = "";
+      searchBox.placeholder = `Search drawings in ${artist}`;
+      renderGallery(mine.map(i => ({ item: i, matches: [] })));
+    }
+
+    // -----------------------------------
+    // OPEN MODAL FOR SELECTED DRAWING
+    // -----------------------------------
+    function openModal(item) {
+      modalImg.src = item.image;
+      modalName.textContent = item.name;
+      modalTutorial.style.display = item.tutorialLink ? "inline-block" : "none";
+      modalTutorial.href = item.tutorialLink || "#";
+
+      if (!viewedDrawings.includes(item.id)) {
+        viewedDrawings.push(item.id);
+        localStorage.setItem("viewedDrawings", JSON.stringify(viewedDrawings));
+        updateDoc(doc(db, "images", item.id), { views: increment(1) });
+      }
+      // We rely on real-time listener to update modalViewCount if it’s open
+      modalViewCount.textContent = fmt(item.views || 0);
+
+      // Populate materials list
+      modalMaterials.innerHTML = (item.materialsRequired || []).length
+        ? item.materialsRequired.map(m => `<li>${m}</li>`).join("")
+        : "<li>No info</li>";
+
+      // Print button
+      printBtn.onclick = () => {
+        const w = window.open();
+        w.document.write(`<img src="${item.image}" onload="window.print();window.close()">`);
+      };
+      // Download button
+      downloadBtn.onclick = () => {
+        const a = document.createElement("a");
+        a.href = item.image; a.download = `${item.name}.png`; a.click();
+      };
+
+      modal.classList.add("active");
+    }
+    modalCloseBtn.addEventListener("click", () => modal.classList.remove("active"));
+    modal.addEventListener("click", e => { if (e.target === modal) modal.classList.remove("active"); });
+
+    // -----------------------------------
+    // APPLY SEARCH / TUTORIAL FILTER
+    // -----------------------------------
+    function applyFilters() {
+      let src = allDrawings;
+      if (currentArtist) {
+        src = src.filter(d => d.artist === currentArtist);
+      } else if (favoritesSection.classList.contains("visible")) {
+        src = src.filter(d => followedArtists.includes(d.artist));
+      }
+
+      const q = searchBox.value.trim();
+      let results;
+      if (q) {
+        results = fuse.search(q)
+          .filter(r => !currentArtist || r.item.artist === currentArtist);
+      } else {
+        results = src.map(i => ({ item: i, matches: [] }));
+      }
+
+      const f = tutorialFilter.value;
+      if (f !== "all") {
+        results = results.filter(r => {
+          const has = !!r.item.tutorialLink;
+          return f === "with" ? has : !has;
+        });
+      }
+
+      renderGallery(results);
+    }
+
+    // -----------------------------------
+    // EVENT LISTENERS FOR FILTERS & BUTTONS
+    // -----------------------------------
+    searchBox.addEventListener("input", applyFilters);
+    tutorialFilter.addEventListener("change", applyFilters);
+    favoritesBtn.addEventListener("click", () => {
+      showSection("favorites");
+      renderFavorites();
+    });
+    backBtn.addEventListener("click", () => {
+      showSection("gallery");
+      renderFeaturedAndGallery();
+    });
+
+    // Kick everything off
+    init();
+  </script>
+</body>
+</html>
